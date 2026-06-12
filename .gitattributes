@@ -1,0 +1,4 @@
+# Ensure shell scripts always use LF so they run on Linux even if edited on Windows.
+*.sh text eol=lf
+deploy/*.service text eol=lf
+deploy/*.conf text eol=lf

@@ -1,0 +1,21 @@
+[Unit]
+Description=Test Management Tool API (FastAPI / Uvicorn)
+After=network.target
+# If you use the local PostgreSQL option, also wait for it:
+# After=network.target postgresql.service
+# Wants=postgresql.service
+
+[Service]
+Type=simple
+User=testmgmt
+Group=testmgmt
+WorkingDirectory=/opt/testmgmt/TestManagementTool/backend
+# pydantic-settings reads backend/.env from this WorkingDirectory.
+ExecStart=/opt/testmgmt/TestManagementTool/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+# With PostgreSQL you can safely add more workers, e.g. add: --workers 4
+# (Keep a single worker when using the default SQLite database.)
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
