@@ -1,0 +1,94 @@
+---
+description: Architecture, domain, and coding standards for the Test Case Assignment & Tracking Platform
+alwaysApply: true
+---
+
+# Test Case Assignment & Tracking System
+
+Test Case Assignment & Tracking Platform for QA teams. Must scale to **10,000+ test cases** and **50+ concurrent users**.
+
+Goals: import test cases from Excel/CSV, let Team Leads assign cases, let Team Members update execution status, integrate with JIRA via MCP servers, provide daily tracking dashboards, pivot reports/analytics, progress graphs/release metrics, and role-based access control.
+
+## Tech Stack
+
+- **Backend**: FastAPI, SQLAlchemy, PostgreSQL, Pydantic, Alembic
+- **Frontend**: React, TypeScript, Material UI, TanStack Table, React Query
+- **Charts**: Plotly, Recharts
+- **Auth**: JWT + Role Based Access Control. Roles: `ADMIN`, `TEAM_LEAD`, `TEAM_MEMBER`
+
+## Architecture (Clean Architecture)
+
+Layered structure — controllers call services, services call repositories. **Business logic must never live in controllers or UI components.**
+
+```
+backend/app/{api,services,repositories,models,schemas,core,utils}
+frontend/src/{pages,components,services,hooks,types,utils}
+```
+
+## Database
+
+Always normalize data. Mandatory tables:
+
+- `users`: id, name, email, role, created_at, updated_at
+- `test_cases`: id, case_id, title, priority, technology, release_version, execution_type, deployment_status, product_line, suite_id, created_at, updated_at
+- `assignments`: id, test_case_id, assigned_to, assigned_by, assigned_date, status, remarks, jira_ticket, execution_date, completed_date
+- `activity_logs`: id, user_id, action, entity_type, entity_id, timestamp
+- `jira_tickets`: id, test_case_id, jira_key, jira_url, status, created_by, created_at
+
+## CSV / Excel Import
+
+Supported: `.csv`, `.xlsx`. Required columns: `Case ID`, `Title`, `Priority`, `Technology`, `Release_Version`, `Execution_Type`, `Assignee`.
+
+Process: validate format → validate mandatory columns → reject duplicate Case IDs → log results → show import summary. Must support bulk import of 10,000+ records.
+
+## Assignment
+
+Only `TEAM_LEAD` and `ADMIN` may assign/reassign/delete assignments. `TEAM_MEMBER` cannot.
+Modes: single, bulk, auto. Auto strategies: Round Robin, Equal Distribution, Technology Based, Priority Based.
+
+## Execution Tracking
+
+Status values: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `PASSED`, `FAILED`, `NEEDS_REVIEW`.
+Members update: status, comments, evidence link, execution date, defect info. **Every status change must be logged.**
+
+## JIRA Integration
+
+All JIRA communication is abstracted through services — never call JIRA directly from UI. Workflow: Failed Test Case → Create Defect → MCP Server → JIRA → store ticket ID. Store: JIRA Key, JIRA URL, created date, status.
+
+## Dashboards
+
+- **Executive**: Total, Assigned, Completed, Pending, Blocked, Failed, Pass Rate
+- **Team Lead**: Team Workload, Assignment Distribution, Execution Progress, Release Progress
+- **Team Member**: My Assignments, My Progress, My Open Defects, My Blocked Cases
+
+## Analytics
+
+Dynamic filters: Technology, Priority, Release Version, Assignee, Execution Type, Product Line.
+Pivot reports: by Technology (Total/Passed/Failed/Blocked), by Release (Completion %/Pass Rate/Fail Rate), by Assignee (Assigned/Completed/Pending).
+
+### Filterable dashboard counts
+
+- Filter option values must be **dynamic** — derived from the data via a facets endpoint (`GET /test-cases/facets`), never hardcoded (releases, execution types, technologies, etc. change over time, e.g. `26Q2`, `Automatable`).
+- A filtered summary endpoint (`GET /dashboards/summary`) accepts any combination of the dynamic filters and returns live counts: total matching cases, assigned/unassigned, per-status (not_started, in_progress, blocked, passed, failed, needs_review), completed, pending (assigned-not-completed), remaining (total-not-completed), and pass rate.
+- Filters are AND-combined and applied server-side; the dashboard reflects the actual count for the active filter set (e.g. "Automatable cases in 26Q2 still pending").
+
+## UI
+
+Material UI components. Responsive design, dark mode, table pagination, global search, column filters, export to Excel/CSV. Tables support sorting, filtering, bulk selection, bulk actions.
+
+## Performance
+
+Always: pagination, server-side filtering, lazy loading. Avoid N+1 queries. Optimize for ~8972 test cases (P0/P1/P2/P3; WLAN STA, BLE, BTC, Concurrent STA + AP; multiple release versions).
+
+## Security
+
+Enforce RBAC everywhere. **Never trust frontend role validation** — validate permissions in backend APIs. Audit: assignments, status changes, JIRA creation, imports, exports.
+
+## Coding Standards
+
+- **Backend**: type hints mandatory, Pydantic validation mandatory, repository pattern mandatory.
+- **Frontend**: TypeScript strict mode, reusable components, custom hooks, no business logic in UI components.
+
+## Future Enhancements (design for extensibility)
+
+AI auto assignment, AI daily summary, AI defect generation, release readiness score, predictive completion forecast, MCP multi-tool integration, Slack/email notifications.

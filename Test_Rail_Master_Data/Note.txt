@@ -1,0 +1,9 @@
+(.venv) PS C:\Achal_Scripts\psmr-tool>.\.venv\Scripts\Activate.ps1
+
+(.venv) PS C:\Achal_Scripts\psmr-tool>.\workspace_setup.bat
+
+
+
+(.venv) PS C:\Achal_Scripts\psmr-tool> python .\master_project_status.py
+
+Enter the Project ID and Suite ID of Master Project (space separated): 9 87 

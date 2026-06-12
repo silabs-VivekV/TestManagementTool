@@ -1,0 +1,37 @@
+Yes, all data lives on your laptop
+There are three places data is saved, all local:
+
+1. The database (the main store) — from app/core/config.py:
+
+
+config.py
+Lines 16-16
+    DATABASE_URL: str = "sqlite:///./test_tracker.db"
+This is a SQLite database — a single file named test_tracker.db, created in the backend's working folder:
+
+C:\Automation_Tracking_Project\backend\test_tracker.db
+Everything you interact with in the UI is stored in that one file: all test cases, users/team members, assignments, statuses, comments, and the activity log (which powers the Weekly Progress report). (It doesn't show up in the earlier Glob search because .db files are git-ignored, but it's there next to the backend code.)
+
+2. The generated Excel artifacts — also config-defined:
+
+
+config.py
+Lines 35-41
+    MASTER_LIST_OUTPUT: str = (
+        "C:/Automation_Tracking_Project/Test_Rail_Master_Data/psmr-tool/automation_data/Master_Project_List.xlsx"
+    )
+    ASSIGNMENT_SHEET_OUTPUT: str = (
+        "C:/Automation_Tracking_Project/Test_Rail_Master_Data/psmr-tool/automation_data/Assigned_Test_Cases.xlsx"
+    )
+Master_Project_List.xlsx — written when you "Sync from TestRail"
+Assigned_Test_Cases.xlsx — the assignment register, refreshed whenever assignments change
+3. Login sessions — your JWT token is held in your browser (not really "saved data," just keeps you logged in).
+
+What this means practically
+Nothing is on a shared server or in the cloud. If someone else opens localhost:5173 on their laptop, they'd be hitting their own empty backend, not yours.
+It's tied to this machine. Back up test_tracker.db and you've backed up the entire system's data.
+SQLite = a file, not a service. There's no separate database server running; the Python backend just reads/writes that file directly.
+If you want the team to share one dataset
+That's the natural next step: deploy the backend on a shared server and switch DATABASE_URL to a PostgreSQL database (the project rule already anticipates Postgres for production). Then everyone's browser points at that one server and sees the same data.
+
+I'm in Ask mode so I can't set that up right now — switch to Agent mode if you'd like me to help configure it.
