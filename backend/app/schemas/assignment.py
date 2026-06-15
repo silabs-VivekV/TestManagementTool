@@ -70,6 +70,10 @@ class AssignmentStatusUpdate(BaseModel):
     remarks: str | None = None
 
 
+class AssignmentReassign(BaseModel):
+    assigned_to: int
+
+
 class AssignmentOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -15,6 +15,7 @@ from app.schemas.assignment import (
     AssignmentCreate,
     AssignmentDetailOut,
     AssignmentOut,
+    AssignmentReassign,
     AssignmentStatusUpdate,
     AutoAssignmentRequest,
     BulkAssignmentCreate,
@@ -137,6 +138,17 @@ def update_status(
             status_code=http_status.HTTP_403_FORBIDDEN, detail="You can only update your own assignments"
         )
     return service.update_status(assignment_id, payload, current_user.id)
+
+
+@router.patch("/{assignment_id}/reassign", response_model=AssignmentDetailOut)
+def reassign_assignment(
+    assignment_id: int,
+    payload: AssignmentReassign,
+    db: Session = Depends(get_db),
+    user: User = Depends(ASSIGNER_ROLES),
+):
+    a = AssignmentService(db).reassign(assignment_id, payload.assigned_to, user.id)
+    return _to_detail(a)
 
 
 @router.delete("/{assignment_id}", status_code=204)

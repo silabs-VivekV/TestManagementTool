@@ -7,6 +7,7 @@ import {
   CardContent,
   Chip,
   Grid,
+  IconButton,
   MenuItem,
   Paper,
   Select,
@@ -19,12 +20,14 @@ import {
   TablePagination,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import DownloadIcon from "@mui/icons-material/Download";
+import PersonOffIcon from "@mui/icons-material/PersonOff";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { assignmentApi } from "@/services/endpoints";
+import { assignmentApi, userApi } from "@/services/endpoints";
 import { useAuth } from "@/hooks/useAuth";
 import StatCard from "@/components/StatCard";
 import { STATUS_COLORS } from "@/theme";
@@ -80,9 +83,26 @@ export default function AssignmentsPage() {
     placeholderData: keepPreviousData,
   });
 
+  const { data: users } = useQuery({
+    queryKey: ["users"],
+    queryFn: userApi.list,
+    enabled: canManage,
+  });
+
   const mutation = useMutation({
     mutationFn: ({ id, status }: { id: number; status: ExecutionStatus }) =>
       assignmentApi.updateStatus(id, { status }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["assignments"] }),
+  });
+
+  const reassignMutation = useMutation({
+    mutationFn: ({ id, assigned_to }: { id: number; assigned_to: number }) =>
+      assignmentApi.reassign(id, assigned_to),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["assignments"] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => assignmentApi.remove(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["assignments"] }),
   });
 
@@ -238,6 +258,7 @@ export default function AssignmentsPage() {
               <TableCell>Status</TableCell>
               <TableCell>ETA</TableCell>
               <TableCell>Update</TableCell>
+              {canManage && <TableCell align="center">Actions</TableCell>}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -245,7 +266,32 @@ export default function AssignmentsPage() {
               <TableRow key={a.id} hover>
                 <TableCell>{a.test_case?.case_id}</TableCell>
                 <TableCell sx={{ maxWidth: 420 }}>{a.test_case?.title}</TableCell>
-                <TableCell>{a.assignee_name}</TableCell>
+                <TableCell>
+                  {canManage ? (
+                    <Select
+                      size="small"
+                      value={users?.some((u) => u.id === a.assigned_to) ? a.assigned_to : ""}
+                      displayEmpty
+                      onChange={(e) =>
+                        reassignMutation.mutate({ id: a.id, assigned_to: Number(e.target.value) })
+                      }
+                      sx={{ minWidth: 160 }}
+                    >
+                      {!users?.some((u) => u.id === a.assigned_to) && (
+                        <MenuItem value="" disabled>
+                          {a.assignee_name ?? "Unknown"}
+                        </MenuItem>
+                      )}
+                      {(users ?? []).map((u) => (
+                        <MenuItem key={u.id} value={u.id}>
+                          {u.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  ) : (
+                    a.assignee_name
+                  )}
+                </TableCell>
                 <TableCell>
                   <Chip
                     size="small"
@@ -285,11 +331,37 @@ export default function AssignmentsPage() {
                     ))}
                   </Select>
                 </TableCell>
+                {canManage && (
+                  <TableCell align="center">
+                    <Tooltip title="Unassign (remove this assignment)">
+                      <span>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          disabled={deleteMutation.isPending}
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Unassign ${a.test_case?.case_id ?? "this test case"} from ${
+                                  a.assignee_name ?? "the current owner"
+                                }? The test case will have no owner until reassigned.`
+                              )
+                            ) {
+                              deleteMutation.mutate(a.id);
+                            }
+                          }}
+                        >
+                          <PersonOffIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
             {data && data.items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+                <TableCell colSpan={canManage ? 7 : 6} align="center" sx={{ py: 4 }}>
                   No assignments yet.
                 </TableCell>
               </TableRow>

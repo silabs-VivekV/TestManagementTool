@@ -261,6 +261,24 @@ class AssignmentService:
         _refresh_assignment_register(self.db)
         return self.get(a.id)
 
+    def reassign(self, assignment_id: int, new_user_id: int, user_id: int) -> Assignment:
+        a = self.get(assignment_id)
+        if not self.users.get(new_user_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown assignee id: {new_user_id}"
+            )
+        old_user = a.assigned_to
+        if old_user != new_user_id:
+            a.assigned_to = new_user_id
+            a.assigned_by = user_id
+            self.activity.log(
+                user_id=user_id, action=ActivityAction.REASSIGN, entity_type="assignment",
+                entity_id=a.id, details=f"user={old_user} -> user={new_user_id}",
+            )
+            self.db.commit()
+            _refresh_assignment_register(self.db)
+        return self.get(a.id)
+
     def delete(self, assignment_id: int, user_id: int) -> None:
         a = self.get(assignment_id)
         self.repo.delete(a)
@@ -268,3 +286,4 @@ class AssignmentService:
             user_id=user_id, action=ActivityAction.DELETE, entity_type="assignment", entity_id=assignment_id
         )
         self.db.commit()
+        _refresh_assignment_register(self.db)

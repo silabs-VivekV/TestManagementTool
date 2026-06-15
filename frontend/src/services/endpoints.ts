@@ -66,6 +66,9 @@ export const assignmentApi = {
     api.post("/assignments/auto", { test_case_ids, assignee_ids, strategy }).then((r) => r.data),
   updateStatus: (id: number, payload: Partial<Assignment>) =>
     api.patch<Assignment>(`/assignments/${id}/status`, payload).then((r) => r.data),
+  reassign: (id: number, assigned_to: number) =>
+    api.patch<Assignment>(`/assignments/${id}/reassign`, { assigned_to }).then((r) => r.data),
+  remove: (id: number) => api.delete<void>(`/assignments/${id}`).then((r) => r.data),
   importSheet: (file: File) => {
     const form = new FormData();
     form.append("file", file);
