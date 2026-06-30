@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import {
   Alert,
   Box,
@@ -31,6 +31,12 @@ import { assignmentApi, userApi } from "@/services/endpoints";
 import { useAuth } from "@/hooks/useAuth";
 import StatCard from "@/components/StatCard";
 import { STATUS_COLORS } from "@/theme";
+import {
+  DETAIL_FIELD_LABELS,
+  DETAIL_FIELDS,
+  isFieldRequired,
+  type AssignmentDetailField,
+} from "@/utils/assignmentStatusFields";
 import type { AssignmentImportResult, ExecutionStatus } from "@/types";
 
 const STATUSES: ExecutionStatus[] = [
@@ -45,11 +51,79 @@ const STATUSES: ExecutionStatus[] = [
   "TEST_STEPS_MISSING",
 ];
 
+const DETAIL_SAVE_DELAY_MS = 600;
+
+function AssignmentDetailFieldInput({
+  assignmentId,
+  field,
+  savedValue,
+  required,
+  onSave,
+}: {
+  assignmentId: number;
+  field: AssignmentDetailField;
+  savedValue: string;
+  required: boolean;
+  onSave: (id: number, field: AssignmentDetailField, value: string) => void;
+}) {
+  const [draft, setDraft] = useState(savedValue);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setDraft(savedValue);
+  }, [savedValue, assignmentId, field]);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const scheduleSave = (next: string) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      if (next !== savedValue) {
+        onSave(assignmentId, field, next);
+      }
+    }, DETAIL_SAVE_DELAY_MS);
+  };
+
+  const showError = required && !draft.trim();
+
+  return (
+    <TextField
+      size="small"
+      multiline
+      minRows={1}
+      maxRows={3}
+      value={draft}
+      placeholder={required ? `${DETAIL_FIELD_LABELS[field]} *` : DETAIL_FIELD_LABELS[field]}
+      error={showError}
+      onChange={(e) => {
+        const next = e.target.value;
+        setDraft(next);
+        scheduleSave(next);
+      }}
+      onBlur={() => {
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+          timerRef.current = null;
+        }
+        if (draft !== savedValue) {
+          onSave(assignmentId, field, draft);
+        }
+      }}
+      sx={{ minWidth: 150 }}
+    />
+  );
+}
+
 export default function AssignmentsPage() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [statusFilter, setStatusFilter] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const { hasRole } = useAuth();
   const canManage = hasRole("ADMIN", "TEAM_LEAD");
@@ -89,9 +163,30 @@ export default function AssignmentsPage() {
     enabled: canManage,
   });
 
-  const mutation = useMutation({
+  const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: number; status: ExecutionStatus }) =>
       assignmentApi.updateStatus(id, { status }),
+    onSuccess: () => {
+      setStatusError(null);
+      queryClient.invalidateQueries({ queryKey: ["assignments"] });
+    },
+    onError: (err: Error) => {
+      setStatusError(
+        (err as any)?.response?.data?.detail ?? "Could not update status. Fill required fields first.",
+      );
+    },
+  });
+
+  const detailMutation = useMutation({
+    mutationFn: ({
+      id,
+      field,
+      value,
+    }: {
+      id: number;
+      field: AssignmentDetailField;
+      value: string;
+    }) => assignmentApi.updateStatus(id, { [field]: value || null }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["assignments"] }),
   });
 
@@ -134,6 +229,12 @@ export default function AssignmentsPage() {
           {downloadMutation.isPending ? "Preparing..." : "Download assignment sheet"}
         </Button>
       </Stack>
+
+      {statusError && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setStatusError(null)}>
+          {statusError}
+        </Alert>
+      )}
 
       {canManage && (
         <Card sx={{ mb: 3 }}>
@@ -248,6 +349,11 @@ export default function AssignmentsPage() {
         ))}
       </TextField>
 
+      <Alert severity="info" sx={{ mb: 2 }}>
+        Required fields for each status are marked with <strong>*</strong>. Comment, Jira Details,
+        and PR Details save automatically as you type.
+      </Alert>
+
       <TableContainer component={Paper} sx={{ opacity: isFetching ? 0.6 : 1 }}>
         <Table size="small" stickyHeader>
           <TableHead>
@@ -257,7 +363,9 @@ export default function AssignmentsPage() {
               <TableCell>Assignee</TableCell>
               <TableCell>Status</TableCell>
               <TableCell>ETA</TableCell>
-              <TableCell>Update</TableCell>
+              {DETAIL_FIELDS.map((field) => (
+                <TableCell key={field}>{DETAIL_FIELD_LABELS[field]}</TableCell>
+              ))}
               {canManage && <TableCell align="center">Actions</TableCell>}
             </TableRow>
           </TableHead>
@@ -265,7 +373,7 @@ export default function AssignmentsPage() {
             {(data?.items ?? []).map((a) => (
               <TableRow key={a.id} hover>
                 <TableCell>{a.test_case?.case_id}</TableCell>
-                <TableCell sx={{ maxWidth: 420 }}>{a.test_case?.title}</TableCell>
+                <TableCell sx={{ maxWidth: 280 }}>{a.test_case?.title}</TableCell>
                 <TableCell>
                   {canManage ? (
                     <Select
@@ -275,7 +383,7 @@ export default function AssignmentsPage() {
                       onChange={(e) =>
                         reassignMutation.mutate({ id: a.id, assigned_to: Number(e.target.value) })
                       }
-                      sx={{ minWidth: 160 }}
+                      sx={{ minWidth: 140 }}
                     >
                       {!users?.some((u) => u.id === a.assigned_to) && (
                         <MenuItem value="" disabled>
@@ -293,11 +401,27 @@ export default function AssignmentsPage() {
                   )}
                 </TableCell>
                 <TableCell>
-                  <Chip
+                  <Select
                     size="small"
-                    label={a.status}
-                    sx={{ bgcolor: STATUS_COLORS[a.status], color: "#fff" }}
-                  />
+                    value={a.status}
+                    onChange={(e) =>
+                      statusMutation.mutate({ id: a.id, status: e.target.value as ExecutionStatus })
+                    }
+                    sx={{ minWidth: 170 }}
+                    renderValue={(value) => (
+                      <Chip
+                        size="small"
+                        label={value}
+                        sx={{ bgcolor: STATUS_COLORS[value as ExecutionStatus], color: "#fff" }}
+                      />
+                    )}
+                  >
+                    {STATUSES.map((s) => (
+                      <MenuItem key={s} value={s}>
+                        {s}
+                      </MenuItem>
+                    ))}
+                  </Select>
                 </TableCell>
                 <TableCell>
                   {canManage ? (
@@ -309,28 +433,27 @@ export default function AssignmentsPage() {
                         etaMutation.mutate({ id: a.id, eta: e.target.value || null })
                       }
                       InputLabelProps={{ shrink: true }}
-                      sx={{ width: 150 }}
+                      sx={{ width: 140 }}
                     />
                   ) : (
-                    a.eta?.slice(0, 10) ?? "—"
+                    a.eta?.slice(0, 10) ?? "\u2014"
                   )}
                 </TableCell>
-                <TableCell>
-                  <Select
-                    size="small"
-                    value={a.status}
-                    onChange={(e) =>
-                      mutation.mutate({ id: a.id, status: e.target.value as ExecutionStatus })
-                    }
-                    sx={{ minWidth: 150 }}
-                  >
-                    {STATUSES.map((s) => (
-                      <MenuItem key={s} value={s}>
-                        {s}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </TableCell>
+                {DETAIL_FIELDS.map((field) => {
+                  const required = isFieldRequired(a.status, field);
+                  const value = (a[field] as string | null | undefined) ?? "";
+                  return (
+                    <TableCell key={field}>
+                      <AssignmentDetailFieldInput
+                        assignmentId={a.id}
+                        field={field}
+                        savedValue={value}
+                        required={required}
+                        onSave={(id, f, v) => detailMutation.mutate({ id, field: f, value: v })}
+                      />
+                    </TableCell>
+                  );
+                })}
                 {canManage && (
                   <TableCell align="center">
                     <Tooltip title="Unassign (remove this assignment)">
@@ -361,7 +484,7 @@ export default function AssignmentsPage() {
             ))}
             {data && data.items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={canManage ? 7 : 6} align="center" sx={{ py: 4 }}>
+                <TableCell colSpan={canManage ? 9 : 8} align="center" sx={{ py: 4 }}>
                   No assignments yet.
                 </TableCell>
               </TableRow>
