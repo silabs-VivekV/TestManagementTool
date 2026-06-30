@@ -19,6 +19,7 @@ import {
 } from "@mui/material";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import CloudSyncIcon from "@mui/icons-material/CloudSync";
+import DownloadIcon from "@mui/icons-material/Download";
 import TerminalIcon from "@mui/icons-material/Terminal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { importApi, syncFromTestRailStream, testrailApi } from "@/services/endpoints";
@@ -52,6 +53,18 @@ export default function ImportPage() {
   const importMutation = useMutation<ImportResult, Error, File>({
     mutationFn: (f) => importApi.uploadTestCases(f),
     onSuccess: () => refreshDataKeys(queryClient),
+  });
+
+  const downloadMutation = useMutation<Blob, Error, void>({
+    mutationFn: () => importApi.downloadMasterList(),
+    onSuccess: (blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Master_Project_List.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+    },
   });
 
   const projectsQuery = useQuery({
@@ -96,9 +109,31 @@ export default function ImportPage() {
 
   return (
     <Box>
-      <Typography variant="h5" sx={{ mb: 2 }}>
-        Import Test Cases
-      </Typography>
+      <Stack
+        direction="row"
+        alignItems="center"
+        justifyContent="space-between"
+        sx={{ mb: 2 }}
+        flexWrap="wrap"
+        gap={1}
+      >
+        <Typography variant="h5">Import Test Cases</Typography>
+        <Button
+          variant="outlined"
+          startIcon={<DownloadIcon />}
+          disabled={downloadMutation.isPending}
+          onClick={() => downloadMutation.mutate()}
+        >
+          {downloadMutation.isPending ? "Preparing..." : "Download Master_Project_List.xlsx"}
+        </Button>
+      </Stack>
+
+      {downloadMutation.isError && (
+        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => downloadMutation.reset()}>
+          {(downloadMutation.error as any)?.response?.data?.detail ??
+            "Could not download Master_Project_List.xlsx. Run Sync from TestRail first."}
+        </Alert>
+      )}
 
       {/* One-shot TestRail pipeline */}
       <Card sx={{ mb: 3 }}>
@@ -146,7 +181,7 @@ export default function ImportPage() {
           {showProjects && (
             <Box sx={{ mt: 2 }}>
               {projectsQuery.isLoading && (
-                <Typography variant="body2">Loading projects…</Typography>
+                <Typography variant="body2">Loading projects\u2026</Typography>
               )}
               {projectsQuery.isError && (
                 <Alert severity="error">{errMsg(projectsQuery.error)}</Alert>
@@ -188,7 +223,7 @@ export default function ImportPage() {
                 <Typography variant="subtitle2">Console</Typography>
                 {syncing && (
                   <Typography variant="caption" color="primary">
-                    running…
+                    running\u2026
                   </Typography>
                 )}
               </Stack>
@@ -217,7 +252,7 @@ export default function ImportPage() {
                     {line}
                   </div>
                 ))}
-                {syncing && <div style={{ opacity: 0.7 }}>▋</div>}
+                {syncing && <div style={{ opacity: 0.7 }}>\u258b</div>}
               </Box>
             </Box>
           )}

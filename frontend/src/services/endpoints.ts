@@ -129,6 +129,10 @@ export const importApi = {
       })
       .then((r) => r.data);
   },
+  downloadMasterList: () =>
+    api
+      .get("/imports/master-list", { responseType: "blob" })
+      .then((r) => r.data as Blob),
 };
 
 export const testrailApi = {
