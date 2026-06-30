@@ -63,6 +63,7 @@ class AssignByFilterResult(BaseModel):
 class AssignmentStatusUpdate(BaseModel):
     status: ExecutionStatus | None = None
     comments: str | None = None
+    jira_ticket: str | None = None
     evidence_link: str | None = None
     defect_info: str | None = None
     execution_date: datetime | None = None
