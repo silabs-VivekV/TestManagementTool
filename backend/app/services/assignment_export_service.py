@@ -17,8 +17,8 @@ EXPORT_COLUMNS = [
     "Case ID", "Title", "Priority", "Technology", "Section ID", "Release_Version",
     "Test Case Execution Type", "Product_line", "SDK_Type", "Automation_Deployment_Status",
     "Product Type", "Test Case Status", "Suite ID",
-    "Assignee", "Current Status", "Comments", "Assigned Date", "ETA", "Completed Date",
-    "Deadline",
+    "Assignee", "Current Status", "Comments", "Jira Details", "PR Details",
+    "Assigned Date", "ETA", "Completed Date", "Deadline",
 ]
 
 
@@ -56,6 +56,8 @@ class AssignmentExportService:
                     "Assignee": u.name,
                     "Current Status": a.status,
                     "Comments": a.comments,
+                    "Jira Details": a.jira_ticket,
+                    "PR Details": a.evidence_link,
                     "Assigned Date": a.assigned_date.strftime("%Y-%m-%d %H:%M") if a.assigned_date else None,
                     "ETA": a.eta.strftime("%Y-%m-%d") if a.eta else None,
                     "Completed Date": a.completed_date.strftime("%Y-%m-%d %H:%M") if a.completed_date else None,

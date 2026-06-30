@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.assignment_status_fields import missing_required_fields
 from app.core.enums import ActivityAction, AutoAssignStrategy, ExecutionStatus
 from app.models.assignment import Assignment
 from app.repositories.assignment_repository import AssignmentRepository
@@ -241,9 +242,27 @@ class AssignmentService:
         data = payload.model_dump(exclude_unset=True)
         new_status = data.get("status")
 
-        for field in ("comments", "evidence_link", "defect_info", "execution_date", "eta", "remarks"):
+        for field in (
+            "comments", "jira_ticket", "evidence_link", "defect_info", "execution_date", "eta", "remarks"
+        ):
             if field in data:
                 setattr(a, field, data[field])
+
+        detail_fields = ("comments", "jira_ticket", "evidence_link", "remarks")
+        values = {
+            "comments": a.comments,
+            "jira_ticket": a.jira_ticket,
+            "evidence_link": a.evidence_link,
+            "remarks": a.remarks,
+        }
+
+        if new_status is not None:
+            missing = missing_required_fields(new_status, values)
+            if missing:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Required for {new_status.value}: {', '.join(missing)}",
+                )
 
         if new_status is not None and new_status != old_status:
             a.status = new_status
