@@ -23,6 +23,33 @@ import {
 } from "recharts";
 import { analyticsApi } from "@/services/endpoints";
 
+/** Renders deadline summary with "Overdue (n)" highlighted in red. */
+function DeadlineSummaryText({ summary, bold = false }: { summary: string; bold?: boolean }) {
+  if (!summary) return null;
+  const parts = summary.split(", ");
+  return (
+    <>
+      {parts.map((part, i) => {
+        const isOverdue = part.startsWith("Overdue");
+        return (
+          <span key={`${part}-${i}`}>
+            {i > 0 && ", "}
+            <Box
+              component="span"
+              sx={{
+                color: isOverdue ? "error.main" : "inherit",
+                fontWeight: bold ? 700 : undefined,
+              }}
+            >
+              {part}
+            </Box>
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
 export default function AnalyticsPage() {
   const { data: byTech } = useQuery({
     queryKey: ["analytics", "tech"],
@@ -96,7 +123,9 @@ export default function AnalyticsPage() {
                           {row.total}
                         </TableCell>
                         <TableCell sx={{ fontWeight: 700 }}>{row.status_summary}</TableCell>
-                        <TableCell sx={{ fontWeight: 700 }}>{row.deadline_summary}</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>
+                          <DeadlineSummaryText summary={row.deadline_summary} bold />
+                        </TableCell>
                       </TableRow>
                       {row.sections.map((sec) => (
                         <TableRow key={`a-${row.assignee_id}-${sec.section_id}`} hover>
@@ -108,7 +137,9 @@ export default function AnalyticsPage() {
                           ))}
                           <TableCell align="right">{sec.total}</TableCell>
                           <TableCell>{sec.status_summary}</TableCell>
-                          <TableCell>{sec.deadline_summary}</TableCell>
+                          <TableCell>
+                            <DeadlineSummaryText summary={sec.deadline_summary} />
+                          </TableCell>
                         </TableRow>
                       ))}
                     </Fragment>

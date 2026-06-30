@@ -1,9 +1,12 @@
 import { useMemo, useState } from "react";
 import {
+  Alert,
   Box,
+  Button,
   Chip,
   MenuItem,
   Paper,
+  Stack,
   Table,
   TableBody,
   TableCell,
@@ -14,8 +17,9 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { testCaseApi, type TestCaseFilters } from "@/services/endpoints";
+import DownloadIcon from "@mui/icons-material/Download";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { importApi, testCaseApi, type TestCaseFilters } from "@/services/endpoints";
 
 const TECHNOLOGIES = ["", "WLAN STA", "BLE", "BTC", "Concurrent STA + AP"];
 const PRIORITIES = ["", "P0", "P1", "P2", "P3"];
@@ -44,11 +48,47 @@ export default function TestCasesPage() {
     placeholderData: keepPreviousData,
   });
 
+  const downloadMutation = useMutation<Blob, Error, void>({
+    mutationFn: () => importApi.downloadMasterList(),
+    onSuccess: (blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Master_Project_List.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+  });
+
   return (
     <Box>
-      <Typography variant="h5" sx={{ mb: 2 }}>
-        Test Cases {data ? `(${data.total.toLocaleString()})` : ""}
-      </Typography>
+      <Stack
+        direction="row"
+        alignItems="center"
+        justifyContent="space-between"
+        sx={{ mb: 2 }}
+        flexWrap="wrap"
+        gap={1}
+      >
+        <Typography variant="h5">
+          Test Cases {data ? `(${data.total.toLocaleString()})` : ""}
+        </Typography>
+        <Button
+          variant="outlined"
+          startIcon={<DownloadIcon />}
+          disabled={downloadMutation.isPending}
+          onClick={() => downloadMutation.mutate()}
+        >
+          {downloadMutation.isPending ? "Preparing..." : "Download Master_Project_List.xlsx"}
+        </Button>
+      </Stack>
+
+      {downloadMutation.isError && (
+        <Alert severity="warning" sx={{ mb: 2 }} onClose={() => downloadMutation.reset()}>
+          {(downloadMutation.error as any)?.response?.data?.detail ??
+            "Could not download Master_Project_List.xlsx. Ask a lead to run Sync from TestRail first."}
+        </Alert>
+      )}
 
       <Box sx={{ display: "flex", gap: 2, mb: 2, flexWrap: "wrap" }}>
         <TextField
