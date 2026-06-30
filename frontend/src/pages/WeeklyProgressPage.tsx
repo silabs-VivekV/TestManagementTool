@@ -13,6 +13,7 @@ import {
 } from "@mui/material";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import WeeklyBurndownChart from "@/components/WeeklyBurndownChart";
 import { analyticsApi } from "@/services/endpoints";
 
 const WEEK_OPTIONS = [4, 8, 12, 16, 26];
@@ -134,6 +135,7 @@ export default function WeeklyProgressPage() {
                   </TableRow>
                 </TableBody>
               </Table>
+              <WeeklyBurndownChart weeks={data.weeks} weekTotals={data.week_totals} />
             </Box>
           ) : (
             <Typography variant="body2" color="text.secondary">
